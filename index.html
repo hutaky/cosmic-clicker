@@ -1,0 +1,292 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Farcaster Frame Tags -->
+  <meta property="og:title" content="Cosmic Clicker Game">
+  <meta property="og:image" content="https://i.imgur.com/8a0N1fA.png">
+  <meta property="fc:frame" content="vNext">
+  <meta property="fc:frame:image" content="https://i.imgur.com/8a0N1fA.png">
+  <meta property="fc:frame:button:1" content="Play Game">
+  <meta property="fc:frame:button:1:action" content="link">
+  <!-- This content attribute will be replaced by your actual Vercel URL -->
+  <meta property="fc:frame:button:1:target" content="REPLACE_WITH_YOUR_VERCEL_URL">
+
+  <title>Cosmic Clicker - A Farcaster Game</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      touch-action: manipulation; /* Prevents double-tap to zoom on mobile */
+    }
+    @keyframes fade-in-down {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes zoom-in {
+      from { opacity: 0; transform: scale(0.8); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .animate-fade-in-down { animation: fade-in-down 0.5s ease-out forwards; }
+    .animate-fade-in-up { animation: fade-in-up 0.5s ease-out 0.2s forwards; }
+    .animate-zoom-in { animation: zoom-in 0.5s ease-out forwards; }
+
+    /* Planet Animations */
+    @keyframes spin-slow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes pulse-slow {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.03); opacity: 1; }
+    }
+    .animate-spin-slow {
+      animation: spin-slow 120s linear infinite;
+    }
+    .animate-pulse-slow {
+      animation: pulse-slow 8s ease-in-out infinite;
+    }
+
+    /* Floating Text Animation */
+    @keyframes floatUp {
+      0% {
+        transform: translate(-50%, -50%);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(-50%, -200px);
+        opacity: 0;
+      }
+    }
+    .floating-text {
+        position: absolute;
+        font-size: 1.5rem; /* 24px */
+        line-height: 2rem; /* 32px */
+        font-weight: 700;
+        color: #FBBF24; /* yellow-400 */
+        pointer-events: none;
+        transition: all 1s ease-out;
+        will-change: transform, opacity;
+        text-shadow: 0 0 5px rgba(255, 255, 0, 0.7);
+        animation: floatUp 1s forwards;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-gray-900 text-white overflow-hidden font-sans">
+  
+  <div class="min-h-screen bg-gradient-to-b from-gray-900 to-indigo-900 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    
+    <div id="floating-text-container"></div>
+    <div class="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20"></div>
+
+    <header class="text-center z-10 mb-4 animate-fade-in-down">
+      <h1 class="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 drop-shadow-lg">
+        Cosmic Clicker
+      </h1>
+      <div class="mt-4 bg-black/30 backdrop-blur-sm p-4 rounded-xl shadow-2xl border border-purple-500/30">
+        <p class="text-lg text-cyan-200">Stardust</p>
+        <p id="score-display" class="text-6xl font-mono font-bold tracking-wider">0</p>
+      </div>
+    </header>
+
+    <main class="w-full max-w-6xl flex flex-col lg:flex-row items-center justify-around z-10">
+      <div class="flex-1 flex items-center justify-center p-8 lg:p-12 animate-zoom-in">
+        <div id="planet" class="relative w-64 h-64 sm:w-80 sm:h-80 rounded-full cursor-pointer group transition-transform duration-200 ease-out active:scale-95" style="will-change: transform">
+          <div class="w-full h-full rounded-full bg-gradient-to-br from-purple-600 via-indigo-700 to-cyan-500 shadow-2xl shadow-purple-500/40 group-hover:shadow-cyan-400/50 transition-all duration-500"></div>
+          <div class="absolute top-0 left-0 w-full h-full rounded-full bg-cyan-400/50 blur-2xl group-hover:blur-3xl group-hover:scale-105 transition-all duration-500 animate-pulse-slow"></div>
+          <div class="absolute top-0 left-0 w-full h-full rounded-full overflow-hidden">
+            <div class="absolute w-[200%] h-[200%] -top-1/2 -left-1/2 bg-[url('https://www.transparenttextures.com/patterns/crisscross-heavy.png')] opacity-10 animate-spin-slow"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="upgrades-container" class="flex-1 w-full max-w-md lg:max-w-sm p-4 space-y-4 animate-fade-in-up">
+        <!-- Upgrade cards will be rendered here by JavaScript -->
+      </div>
+    </main>
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // --- STATE ---
+  let score = 0;
+  let clickPower = 1;
+  let clickPowerLevel = 1;
+  let autoClickerLevel = 0;
+  let autoClickerInterval = null;
+
+  // --- DOM ELEMENTS ---
+  const scoreDisplay = document.getElementById('score-display');
+  const planet = document.getElementById('planet');
+  const upgradesContainer = document.getElementById('upgrades-container');
+  const floatingTextContainer = document.getElementById('floating-text-container');
+  
+  // Update the frame target URL with the current page URL
+  const frameTargetMeta = document.querySelector('meta[property="fc:frame:button:1:target"]');
+  if (frameTargetMeta) {
+    frameTargetMeta.setAttribute('content', window.location.href);
+  }
+
+  // --- ICONS ---
+  const clickIconSVG = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+    </svg>`;
+  const autoClickIconSVG = `
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>`;
+  
+  // --- COST CALCULATION ---
+  const getClickPowerCost = (level) => Math.ceil(15 * Math.pow(1.15, level - 1));
+  const getAutoClickerCost = (level) => Math.ceil(25 * Math.pow(1.2, level));
+
+  // --- UI UPDATE FUNCTIONS ---
+  const updateScoreDisplay = () => {
+    scoreDisplay.textContent = Math.floor(score).toLocaleString('en-US');
+  };
+
+  const renderUpgrades = () => {
+    const clickPowerCost = getClickPowerCost(clickPowerLevel);
+    const autoClickerCost = getAutoClickerCost(autoClickerLevel);
+
+    const autoClickerValue = autoClickerLevel > 0 ? (autoClickerLevel * (1 + Math.floor(autoClickerLevel / 10))) : 0;
+
+    upgradesContainer.innerHTML = `
+      ${createUpgradeCard({
+        id: 'buy-click-power',
+        title: 'Clicking Power',
+        description: `+1 power per click. Currently: ${clickPower}/click`,
+        level: clickPowerLevel,
+        cost: clickPowerCost,
+        canAfford: score >= clickPowerCost,
+        icon: clickIconSVG
+      })}
+      ${createUpgradeCard({
+        id: 'buy-auto-clicker',
+        title: 'Auto Collector',
+        description: `Automatically gathers stardust. Currently: ${autoClickerValue}/sec`,
+        level: autoClickerLevel,
+        cost: autoClickerCost,
+        canAfford: score >= autoClickerCost,
+        icon: autoClickIconSVG
+      })}
+    `;
+    // Re-attach event listeners after re-rendering
+    document.getElementById('buy-click-power').addEventListener('click', handleBuyClickPower);
+    document.getElementById('buy-auto-clicker').addEventListener('click', handleBuyAutoClicker);
+  };
+  
+  const createUpgradeCard = ({ id, title, description, level, cost, canAfford, icon }) => {
+    return `
+      <div class="bg-gray-800/50 backdrop-blur-md p-4 rounded-lg border border-purple-500/30 shadow-lg transition-all duration-300 hover:border-cyan-400/50 hover:bg-gray-800/80">
+        <div class="flex items-start space-x-4">
+          <div class="flex-shrink-0 text-cyan-400 bg-gray-900/50 p-3 rounded-lg">
+            ${icon}
+          </div>
+          <div class="flex-1">
+            <h3 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-cyan-300">${title}</h3>
+            <p class="text-sm text-gray-300 mt-1">${description}</p>
+            <p class="text-xs text-gray-400 mt-1">Level: ${level}</p>
+          </div>
+        </div>
+        <button
+          id="${id}"
+          ${!canAfford ? 'disabled' : ''}
+          class="w-full mt-4 px-4 py-3 rounded-lg font-bold text-lg transition-all duration-200 ease-in-out transform
+            ${canAfford
+              ? 'bg-gradient-to-r from-purple-600 to-cyan-500 text-white hover:from-purple-500 hover:to-cyan-400 hover:scale-105 shadow-md hover:shadow-lg'
+              : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            }
+            disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Upgrade (${cost.toLocaleString('en-US')})
+        </button>
+      </div>
+    `;
+  };
+
+  const updateUI = () => {
+    updateScoreDisplay();
+    renderUpgrades();
+  };
+
+  // --- EVENT HANDLERS ---
+  const handleManualClick = (event) => {
+    score += clickPower;
+    createFloatingText(event.clientX, event.clientY, `+${clickPower}`);
+    updateUI();
+  };
+
+  const handleBuyClickPower = () => {
+    const cost = getClickPowerCost(clickPowerLevel);
+    if (score >= cost) {
+      score -= cost;
+      clickPower += 1 + Math.floor(clickPowerLevel / 5);
+      clickPowerLevel++;
+      updateUI();
+    }
+  };
+
+  const handleBuyAutoClicker = () => {
+    const cost = getAutoClickerCost(autoClickerLevel);
+    if (score >= cost) {
+      score -= cost;
+      autoClickerLevel++;
+      setupAutoClicker();
+      updateUI();
+    }
+  };
+  
+  const createFloatingText = (x, y, value) => {
+    const textElement = document.createElement('div');
+    textElement.className = 'floating-text';
+    textElement.style.left = `${x}px`;
+    textElement.style.top = `${y}px`;
+    textElement.textContent = value;
+    
+    floatingTextContainer.appendChild(textElement);
+    
+    setTimeout(() => {
+      textElement.remove();
+    }, 1000); // Remove after animation ends
+  };
+
+  // --- GAME LOGIC ---
+  const setupAutoClicker = () => {
+    if (autoClickerInterval) {
+      clearInterval(autoClickerInterval);
+    }
+    if (autoClickerLevel > 0) {
+      autoClickerInterval = setInterval(() => {
+        const autoClickValue = autoClickerLevel * (1 + Math.floor(autoClickerLevel / 10));
+        score += autoClickValue;
+        updateUI();
+      }, 1000);
+    }
+  };
+
+  // --- INITIALIZATION ---
+  planet.addEventListener('click', handleManualClick);
+  updateUI();
+});
+</script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
